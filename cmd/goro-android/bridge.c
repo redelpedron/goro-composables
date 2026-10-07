@@ -166,6 +166,15 @@ JNIEXPORT jboolean JNICALL Java_org_goro_GoroActivity_nativeLoginServer(JNIEnv *
     return GoroLoginServer(index) ? JNI_TRUE : JNI_FALSE;
 }
 
+JNIEXPORT jboolean JNICALL Java_org_goro_GoroActivity_nativeLoginCharacter(JNIEnv *env, jclass cls, jstring kind, jint slot) {
+    (void)cls;
+    const char *k = (*env)->GetStringUTFChars(env, kind, NULL);
+    if (!k) return JNI_FALSE;
+    int ok = GoroLoginCharacter((char *)k, slot);
+    (*env)->ReleaseStringUTFChars(env, kind, k);
+    return ok ? JNI_TRUE : JNI_FALSE;
+}
+
 JNIEXPORT jstring JNICALL Java_org_goro_GoroActivity_nativeLoginState(JNIEnv *env, jclass cls) {
     (void)cls;
     char *state = GoroLoginState();

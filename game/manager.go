@@ -90,6 +90,17 @@ func (m *Manager) SelectServer(index int) bool {
 	return true
 }
 
+// CharacterAction queues a character-select tap from the host: select,
+// activate, ok, make, delete or cancel. Safe from any thread.
+func (m *Manager) CharacterAction(kind string, slot int) bool {
+	lm := m.loginMode.Load()
+	if lm == nil {
+		return false
+	}
+	lm.remote.postChar(loginCharAction{kind: kind, slot: slot})
+	return true
+}
+
 // LoginSnapshot is safe to call from any thread; ok is false outside login.
 func (m *Manager) LoginSnapshot() (LoginSnapshot, bool) {
 	lm := m.loginMode.Load()

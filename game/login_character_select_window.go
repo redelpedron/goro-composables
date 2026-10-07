@@ -22,6 +22,12 @@ const (
 )
 
 func (m *LoginMode) updateCharacterSelectInput(ctx client.Context) {
+	if nativeLogin.Load() {
+		m.updateNativeCharacterSelect(ctx)
+		if m.phase != loginPhaseCharacter {
+			return
+		}
+	}
 	if ctx.Input != nil && ctx.Input.JustPressed(input.KeyEscape) {
 		m.cancelCharacterSelect(ctx)
 		return
@@ -45,7 +51,8 @@ func (m *LoginMode) updateCharacterSelectInput(ctx client.Context) {
 }
 
 func (m *LoginMode) updateCharacterSelectWindow(ctx client.Context) {
-	if ctx.Config.Headless {
+	// The host draws the character list itself in native mode.
+	if ctx.Config.Headless || nativeLogin.Load() {
 		return
 	}
 	opts := gameui.CharacterSelectWindowOptions{

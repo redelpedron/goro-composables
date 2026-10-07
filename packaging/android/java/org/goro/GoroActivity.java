@@ -44,6 +44,7 @@ public final class GoroActivity extends ComponentActivity implements InputManage
     private static native boolean nativeCanChooseFolder();
     private static native boolean nativeLoginSubmit(String username, String password, boolean keepId);
     private static native boolean nativeLoginServer(int index);
+    private static native boolean nativeLoginCharacter(String kind, int slot);
     private static native String nativeLoginState();
     private static native void nativePointer(int kind, int button, int buttons, float x, float y);
     private static native void nativeScroll(float x, float y, float delta);
@@ -184,6 +185,7 @@ public final class GoroActivity extends ComponentActivity implements InputManage
                 return nativeLoginSubmit(username, password, keepId);
             }
             @Override public boolean server(int index) { return nativeLoginServer(index); }
+            @Override public boolean character(String kind, int slot) { return nativeLoginCharacter(kind, slot); }
             @Override public void chooseFolder() { GoroActivity.this.chooseFolder(); }
         });
         loginView = LoginOverlay.create(this, loginController);

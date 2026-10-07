@@ -203,6 +203,17 @@ func GoroLoginServer(index C.int) C.int {
 	return 1
 }
 
+//export GoroLoginCharacter
+func GoroLoginCharacter(kind *C.char, slot C.int) C.int {
+	host.Lock()
+	game := host.game
+	host.Unlock()
+	if game == nil || !game.CharacterAction(C.GoString(kind), int(slot)) {
+		return 0
+	}
+	return 1
+}
+
 // GoroLoginState returns JSON the caller must free. "active" is false while
 // the game is starting or after it has left the login screens.
 //
