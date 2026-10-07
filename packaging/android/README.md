@@ -8,7 +8,7 @@ to a debug APK.
 ## Build and install
 
 On Linux, install Go (the version in `go.mod`), JDK 17+, Python 3, ripgrep,
-Android SDK platform 35, build-tools 35 or newer, and an Android NDK with an
+Gradle 8.9 or newer, Android SDK platform 35 with build-tools 36.0.0, and an Android NDK with an
 `aarch64-linux-android29-clang` compiler. Then run from the repository root:
 
 ```sh
@@ -17,13 +17,14 @@ packaging/android/install.sh /path/to/OldRO
 ```
 
 The build defaults to `~/Android/Sdk`. Set `ANDROID_SDK_ROOT` (or
-`ANDROID_HOME`), `ANDROID_NDK_HOME`, `ANDROID_BUILD_TOOLS`, and `JAVA_HOME` to
-override tool locations. `ANDROID_BUILD_TOOLS` is a directory, not a version.
+`ANDROID_HOME`), `ANDROID_NDK_HOME`, and `JAVA_HOME` to override tool locations.
 Set `ANDROID_SERIAL` when multiple devices are attached.
 
-Output: `dist/android/goro-debug.apk`. The debug signing key is generated at
-`dist/android/debug.keystore`; retain it to update an existing installation.
-The scripts do not require Gradle or gomobile.
+Output: `dist/android/goro-debug.apk`. The Go game is built into `libgoro.so` by
+`build.sh`; Gradle (project in `packaging/android/`) then compiles the Kotlin/Compose
+UI and Java host and signs the APK. Debug builds use Gradle's standard
+`~/.android/debug.keystore`; an install signed with the older
+`dist/android/debug.keystore` must be uninstalled once. gomobile is not used.
 
 `install.sh` installs the APK, optionally copies the supplied client assets, then
 launches Goro. Omit the data argument on subsequent installs to retain the
@@ -120,6 +121,9 @@ adb reverse tcp:5121 tcp:5121
 
 - Tap/drag: left click / held movement. Two-finger drag: right drag for camera
   rotation. Pinch: mouse wheel for zoom.
+- The login form is a native Compose screen: its fields use the Android IME directly
+  and the form lifts above the keyboard. It appears only while the account form is the
+  right UI; Go-drawn dialogs (server list, connection errors) remain reachable.
 - **Keyboard** opens the Android IME for the currently focused game field.
   Physical keyboards use the shared desktop key mapping.
 - Gamepads use the same `goro.gamepad` Lua API and bindings as desktop. Left

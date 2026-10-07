@@ -97,6 +97,21 @@ func (g *Game) InLogin() bool {
 	return g.modes.InLogin()
 }
 
+// SubmitLogin forwards host-drawn credentials to the login mode.
+func (g *Game) SubmitLogin(username, password string, keepID bool) bool {
+	return g.modes.SubmitLogin(username, password, keepID)
+}
+
+// SelectServer forwards a host-drawn server choice (-1 = change server).
+func (g *Game) SelectServer(index int) bool {
+	return g.modes.SelectServer(index)
+}
+
+// LoginSnapshot reports login progress for a host-drawn form.
+func (g *Game) LoginSnapshot() (game.LoginSnapshot, bool) {
+	return g.modes.LoginSnapshot()
+}
+
 func (g *Game) Draw(screen *render.Frame) {
 	if g.cfg.Headless {
 		return

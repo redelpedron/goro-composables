@@ -1,6 +1,5 @@
 package org.goro;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
@@ -31,15 +30,21 @@ import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import androidx.activity.ComponentActivity;
+import androidx.compose.ui.platform.ComposeView;
+import androidx.core.view.WindowCompat;
 import java.io.File;
 
-public final class GoroActivity extends Activity implements InputManager.InputDeviceListener {
+public final class GoroActivity extends ComponentActivity implements InputManager.InputDeviceListener {
     static { System.loadLibrary("goro"); }
     private static final int PICK_RO_FOLDER = 1;
     private static native void nativeStart(Surface surface, int width, int height, String appDir, String dataSource);
     private static native void nativeStop();
     private static native String nativeStatus();
     private static native boolean nativeCanChooseFolder();
+    private static native boolean nativeLoginSubmit(String username, String password, boolean keepId);
+    private static native boolean nativeLoginServer(int index);
+    private static native String nativeLoginState();
     private static native void nativePointer(int kind, int button, int buttons, float x, float y);
     private static native void nativeScroll(float x, float y, float delta);
     private static native void nativeKey(int code, int mods, boolean down);
@@ -58,6 +63,9 @@ public final class GoroActivity extends Activity implements InputManager.InputDe
     private TextView instructions;
     private Button folder;
     private Button keyboard;
+    private LoginController loginController;
+    private ComposeView loginView;
+    private boolean loginVisible;
     private boolean choosingFolder;
     private boolean startupFailed;
     private boolean running;
@@ -66,7 +74,7 @@ public final class GoroActivity extends Activity implements InputManager.InputDe
     private final Runnable statusCheck = new Runnable() {
         @Override public void run() {
             if (!running) return;
-            folder.setVisibility(nativeCanChooseFolder() ? View.VISIBLE : View.GONE);
+            folder.setVisibility(!loginVisible && nativeCanChooseFolder() ? View.VISIBLE : View.GONE);
             String error = nativeStatus();
             if (!error.isEmpty()) {
                 stopGame();
@@ -88,6 +96,30 @@ public final class GoroActivity extends Activity implements InputManager.InputDe
         }
     };
 
+    // Polls the Go login mode and shows the Compose form only while it is the
+    // right UI. Go-drawn dialogs (connection failed, server picker) stay reachable.
+    private final Runnable loginPoll = new Runnable() {
+        @Override public void run() {
+            if (!running) return;
+            setLoginVisible(loginController.update(nativeLoginState()));
+            handler.postDelayed(this, 120);
+        }
+    };
+
+    private void setLoginVisible(boolean visible) {
+        if (visible == loginVisible) return;
+        loginVisible = visible;
+        loginView.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (visible) {
+            folder.setVisibility(View.GONE);
+            keyboard.setVisibility(View.GONE);
+        } else {
+            ((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(game.getWindowToken(), 0);
+            game.requestFocus();
+            updateFolderPrompt();
+        }
+    }
+
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         inputManager = (InputManager)getSystemService(INPUT_SERVICE);
@@ -99,6 +131,9 @@ public final class GoroActivity extends Activity implements InputManager.InputDe
         DocumentTree.init(this);
         dataSource = getPreferences(MODE_PRIVATE).getString("ro_folder", dataDir.getAbsolutePath());
         choosingFolder = state != null && state.getBoolean("choosing_folder", false);
+        // Compose reports the IME through window insets; the legacy resize path
+        // would shrink the SurfaceView and fight the fixed-size game surface.
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         FrameLayout root = new FrameLayout(this);
         game = new GameView();
         root.addView(game, new FrameLayout.LayoutParams(-1, -1));
@@ -144,6 +179,16 @@ public final class GoroActivity extends Activity implements InputManager.InputDe
         keyboard.setOnClickListener(v -> showKeyboard());
         FrameLayout.LayoutParams buttonLayout = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.RIGHT);
         root.addView(keyboard, buttonLayout);
+        loginController = new LoginController(new LoginController.Actions() {
+            @Override public boolean submit(String username, String password, boolean keepId) {
+                return nativeLoginSubmit(username, password, keepId);
+            }
+            @Override public boolean server(int index) { return nativeLoginServer(index); }
+            @Override public void chooseFolder() { GoroActivity.this.chooseFolder(); }
+        });
+        loginView = LoginOverlay.create(this, loginController);
+        loginView.setVisibility(View.GONE);
+        root.addView(loginView, new FrameLayout.LayoutParams(-1, -1));
         updateFolderPrompt();
         setContentView(root);
         immersive();
@@ -174,8 +219,8 @@ public final class GoroActivity extends Activity implements InputManager.InputDe
             ? "Goro couldn't open the selected game files.\nSelect the folder where you extracted your RO client."
             : "Game files aren't included with Goro.\nSelect the folder where you extracted your RO client.");
         folderSetup.setVisibility(needsFolder ? View.VISIBLE : View.GONE);
-        folder.setVisibility(!needsFolder && (!running || nativeCanChooseFolder()) ? View.VISIBLE : View.GONE);
-        keyboard.setVisibility(needsFolder ? View.GONE : View.VISIBLE);
+        folder.setVisibility(!needsFolder && !loginVisible && (!running || nativeCanChooseFolder()) ? View.VISIBLE : View.GONE);
+        keyboard.setVisibility(needsFolder || loginVisible ? View.GONE : View.VISIBLE);
         if (needsFolder) folderSetup.requestFocus();
     }
 
@@ -287,13 +332,16 @@ public final class GoroActivity extends Activity implements InputManager.InputDe
         running = true;
         nativeFocus(hasWindowFocus());
         handler.postDelayed(statusCheck, 1000);
+        handler.post(loginPoll);
         for (int id : InputDevice.getDeviceIds()) onInputDeviceAdded(id);
     }
     private void stopGame() {
         handler.removeCallbacks(statusCheck);
+        handler.removeCallbacks(loginPoll);
         if (!running) return;
         nativeStop();
         running = false;
+        setLoginVisible(false);
         folder.setVisibility(View.VISIBLE);
     }
 
@@ -311,7 +359,7 @@ public final class GoroActivity extends Activity implements InputManager.InputDe
         if (key == KeyEvent.KEYCODE_VOLUME_UP || key == KeyEvent.KEYCODE_VOLUME_DOWN || key == KeyEvent.KEYCODE_POWER) {
             return super.dispatchKeyEvent(event);
         }
-        if (!running) return super.dispatchKeyEvent(event);
+        if (!running || loginVisible) return super.dispatchKeyEvent(event);
         if (isGamepad(event.getDevice()) && (KeyEvent.isGamepadButton(key)
             || key == KeyEvent.KEYCODE_DPAD_UP || key == KeyEvent.KEYCODE_DPAD_DOWN
             || key == KeyEvent.KEYCODE_DPAD_LEFT || key == KeyEvent.KEYCODE_DPAD_RIGHT)) {

@@ -62,6 +62,7 @@ type LoginMode struct {
 	quitConfirm         gameui.ConfirmModal
 	disconnectDialog    gameui.ConfirmModal
 	mapError            string
+	remote              loginRemote
 }
 
 type loginPhase int
@@ -170,6 +171,7 @@ func (m *LoginMode) Enter(ctx client.Context) Mode {
 }
 
 func (m *LoginMode) Update(ctx client.Context) (Mode, error) {
+	defer m.publishRemote(ctx)
 	now := time.Now()
 	if m.updateFade(ctx, now) {
 		return m.nextWorldMode(ctx), nil

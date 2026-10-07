@@ -10,3 +10,5 @@ run.sh
 *.keystore
 *.jks
 *.p12
+packaging/android/.gradle/
+packaging/android/app/build/

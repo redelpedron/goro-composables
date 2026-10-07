@@ -14,6 +14,7 @@ import "C"
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,6 +27,7 @@ import (
 	"github.com/gogpu/gpucontext"
 	"github.com/kivutar/goro/app"
 	"github.com/kivutar/goro/config"
+	gorogame "github.com/kivutar/goro/game"
 	"github.com/kivutar/goro/glog"
 	"github.com/kivutar/goro/input"
 	"github.com/kivutar/goro/render"
@@ -66,6 +68,8 @@ func GoroStart(window C.uintptr_t, width, height C.int, directory, source *C.cha
 }
 
 func run(dir, dataSource string, width, height int) error {
+	// The Compose overlay owns the credential form on Android.
+	gorogame.SetNativeLogin(true)
 	// Settings and screenshots stay in writable app storage. Assets may instead
 	// come from a read-only document tree granted by Android's folder picker.
 	if err := os.Chdir(dir); err != nil {
@@ -175,6 +179,50 @@ func GoroCanChooseFolder() C.int {
 		return 1
 	}
 	return 0
+}
+
+//export GoroLoginSubmit
+func GoroLoginSubmit(username, password *C.char, keepID C.int) C.int {
+	host.Lock()
+	game := host.game
+	host.Unlock()
+	if game == nil || !game.SubmitLogin(C.GoString(username), C.GoString(password), keepID != 0) {
+		return 0
+	}
+	return 1
+}
+
+//export GoroLoginServer
+func GoroLoginServer(index C.int) C.int {
+	host.Lock()
+	game := host.game
+	host.Unlock()
+	if game == nil || !game.SelectServer(int(index)) {
+		return 0
+	}
+	return 1
+}
+
+// GoroLoginState returns JSON the caller must free. "active" is false while
+// the game is starting or after it has left the login screens.
+//
+//export GoroLoginState
+func GoroLoginState() *C.char {
+	host.Lock()
+	game := host.game
+	host.Unlock()
+	state := struct {
+		Active bool `json:"active"`
+		gorogame.LoginSnapshot
+	}{}
+	if game != nil {
+		state.LoginSnapshot, state.Active = game.LoginSnapshot()
+	}
+	out, err := json.Marshal(state)
+	if err != nil {
+		return C.CString(`{"active":false}`)
+	}
+	return C.CString(string(out))
 }
 
 //export GoroPointer

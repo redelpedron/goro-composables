@@ -149,6 +149,31 @@ JNIEXPORT jboolean JNICALL Java_org_goro_GoroActivity_nativeCanChooseFolder(JNIE
     return GoroCanChooseFolder() ? JNI_TRUE : JNI_FALSE;
 }
 
+JNIEXPORT jboolean JNICALL Java_org_goro_GoroActivity_nativeLoginSubmit(JNIEnv *env, jclass cls, jstring username, jstring password, jboolean keep) {
+    (void)cls;
+    const char *user = (*env)->GetStringUTFChars(env, username, NULL);
+    if (!user) return JNI_FALSE;
+    const char *pass = (*env)->GetStringUTFChars(env, password, NULL);
+    if (!pass) { (*env)->ReleaseStringUTFChars(env, username, user); return JNI_FALSE; }
+    int ok = GoroLoginSubmit((char *)user, (char *)pass, keep ? 1 : 0);
+    (*env)->ReleaseStringUTFChars(env, password, pass);
+    (*env)->ReleaseStringUTFChars(env, username, user);
+    return ok ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL Java_org_goro_GoroActivity_nativeLoginServer(JNIEnv *env, jclass cls, jint index) {
+    (void)env; (void)cls;
+    return GoroLoginServer(index) ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jstring JNICALL Java_org_goro_GoroActivity_nativeLoginState(JNIEnv *env, jclass cls) {
+    (void)cls;
+    char *state = GoroLoginState();
+    jstring result = (*env)->NewStringUTF(env, state);
+    free(state);
+    return result;
+}
+
 JNIEXPORT void JNICALL Java_org_goro_GoroActivity_nativePointer(JNIEnv *env, jclass cls, jint kind, jint button, jint buttons, jfloat x, jfloat y) {
     (void)env; (void)cls;
     GoroPointer(kind, button, buttons, x, y);

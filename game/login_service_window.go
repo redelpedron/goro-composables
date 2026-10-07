@@ -14,6 +14,10 @@ import (
 )
 
 func (m *LoginMode) updateLoginServerWindow(ctx client.Context) {
+	if nativeLogin.Load() && !ctx.Config.Headless {
+		m.updateNativeServerChoice(ctx)
+		return
+	}
 	m.updateServiceWindow(ctx, "Server", loginServerNames(loginConnections(ctx)), m.selectedLoginServer, gameui.ServiceWindowCallbacks{
 		OnSelect: func(index int) {
 			m.selectLoginServer(ctx, index)

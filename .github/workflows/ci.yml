@@ -1,17 +1,22 @@
 name: CI
 
+# Android is the only shipped target, so CI builds only the APK plus one cheap
+# Linux check. Duplicate push+PR runs are avoided and superseded runs cancelled.
 on:
   push:
+    branches: [main]
+    paths-ignore: ["website/**", "**.md"]
   pull_request:
+    paths-ignore: ["website/**", "**.md"]
   workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     env:
       CGO_ENABLED: "0"
       GOFLAGS: "-tags=nofakecgo"
@@ -23,6 +28,7 @@ jobs:
           cache: true
       - run: go vet ./...
       - run: go test ./input ./render
+      - run: go test -run 'LoginRemote|ManagerSubmitLogin' ./game
       - run: go install honnef.co/go/tools/cmd/staticcheck@latest
       - run: staticcheck ./...
 
@@ -33,9 +39,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-android
-      - run: packaging/android/build.sh
+      - run: bash packaging/android/build.sh
       - uses: actions/upload-artifact@v7
         with:
           name: goro-android-arm64-debug
           path: dist/android/goro-debug.apk
           if-no-files-found: error
+          retention-days: 7

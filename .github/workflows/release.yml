@@ -8,59 +8,6 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - goos: windows
-            goarch: amd64
-            name: goro-windows-x86_64.exe
-          - goos: windows
-            goarch: arm64
-            name: goro-windows-arm64.exe
-          - goos: darwin
-            goarch: amd64
-            name: goro-osx-x86_64
-          - goos: darwin
-            goarch: arm64
-            name: goro-osx-arm64
-          - goos: linux
-            goarch: amd64
-            name: goro-linux-x86_64
-          - goos: linux
-            goarch: arm64
-            name: goro-linux-arm64
-    env:
-      CGO_ENABLED: "0"
-      GOFLAGS: "-tags=nofakecgo"
-      GOOS: ${{ matrix.goos }}
-      GOARCH: ${{ matrix.goarch }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache: true
-      - name: Generate Windows resources
-        if: matrix.goos == 'windows'
-        run: >-
-          GOOS=linux GOARCH=amd64
-          go run github.com/akavel/rsrc@936343600d578fb5da472acf6987ed76935a389b
-          -arch ${{ matrix.goarch }}
-          -ico packaging/windows/goro.ico
-          -o rsrc_windows_${{ matrix.goarch }}.syso
-      - run: |
-          ldflags="-s -w"
-          if [ "$GOOS" = "windows" ]; then
-            ldflags="$ldflags -H=windowsgui"
-          fi
-          go build -trimpath -ldflags="$ldflags" -o dist/${{ matrix.name }} .
-      - uses: softprops/action-gh-release@v3
-        with:
-          files: dist/${{ matrix.name }}
-
   android:
     runs-on: ubuntu-24.04
     steps:
@@ -80,7 +27,7 @@ jobs:
           umask 077
           trap 'rm -f "$ANDROID_KEYSTORE"' EXIT
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE"
-          packaging/android/build.sh
+          run: bash packaging/android/build.sh
       - uses: softprops/action-gh-release@v3
         with:
           files: dist/android/goro-android-arm64.apk

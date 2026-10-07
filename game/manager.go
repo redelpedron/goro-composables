@@ -33,6 +33,7 @@ type Manager struct {
 	ctx           client.Context
 	mode          Mode
 	login         atomic.Bool
+	loginMode     atomic.Pointer[LoginMode]
 	script        *luaScript
 	scriptBlocked [input.GamepadButtonCount]bool
 }
@@ -55,8 +56,9 @@ func (m *Manager) enter(mode Mode) {
 			leaving.Leave()
 		}
 		m.mode = mode
-		_, login := mode.(*LoginMode)
+		lm, login := mode.(*LoginMode)
 		m.login.Store(login)
+		m.loginMode.Store(lm) // nil when leaving login
 		mode = mode.Enter(m.ctx)
 	}
 }
@@ -64,6 +66,37 @@ func (m *Manager) enter(mode Mode) {
 // InLogin can be queried by platform UI threads without reading the live mode.
 func (m *Manager) InLogin() bool {
 	return m.login.Load()
+}
+
+// SubmitLogin is safe to call from any thread. It reports false when the game
+// is not at the login screen.
+func (m *Manager) SubmitLogin(username, password string, keepID bool) bool {
+	lm := m.loginMode.Load()
+	if lm == nil {
+		return false
+	}
+	lm.remote.post(loginSubmit{username: username, password: password, keepID: keepID})
+	return true
+}
+
+// SelectServer picks login server index, or returns to the server list when
+// index is -1. Safe from any thread.
+func (m *Manager) SelectServer(index int) bool {
+	lm := m.loginMode.Load()
+	if lm == nil {
+		return false
+	}
+	lm.remote.postServer(index)
+	return true
+}
+
+// LoginSnapshot is safe to call from any thread; ok is false outside login.
+func (m *Manager) LoginSnapshot() (LoginSnapshot, bool) {
+	lm := m.loginMode.Load()
+	if lm == nil {
+		return LoginSnapshot{}, false
+	}
+	return lm.remote.snapshot(), true
 }
 
 func (m *Manager) UpdateContext(ctx client.Context) {
